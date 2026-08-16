@@ -36,7 +36,7 @@ Secret ManagerのシークレットはJSONとして保存されます。Cloud Ru
 
 1. TikTok Developer PortalでLogin Kit / Display APIを有効化し、`video.list` を承認します。
 2. TikTokのRedirect URIにGitHub Pagesの `docs/callback.html` 公開URLを登録します。
-3. `docs/callback.html` 内の `window.USAGI_ANALYTICS_CALLBACK_URL` をCloud Runの `/oauth/callback` URLに設定してGitHub Pagesへ配置します。
+3. `docs/callback.js` 内の `window.USAGI_ANALYTICS_CALLBACK_URL` をCloud Runの `/oauth/callback` URLに設定してGitHub Pagesへ配置します。
 4. 認可URLを生成します。
 
 ```powershell
@@ -117,7 +117,7 @@ Artifact Registryを先に作るため、初回だけtarget applyします。
 
 ```powershell
 terraform init
-terraform apply -target=google_artifact_registry_repository.app
+terraform apply "-target=google_artifact_registry_repository.app"
 ```
 
 イメージをbuild/pushします。
@@ -133,7 +133,7 @@ terraform apply
 terraform output oauth_callback_url
 ```
 
-出力された `oauth_callback_url` を `docs/callback.html` の `USAGI_ANALYTICS_CALLBACK_URL` に設定してGitHub Pagesへ配置します。その後、TikTok Developer PortalにはGitHub Pages側の `callback.html` URLをRedirect URIとして登録してください。
+出力された `oauth_callback_url` を `docs/callback.js` の `USAGI_ANALYTICS_CALLBACK_URL` に設定してGitHub Pagesへ配置します。その後、TikTok Developer PortalにはGitHub Pages側の `callback.html` URLをRedirect URIとして登録してください。
 
 ## TikTok申請URL
 
@@ -144,7 +144,7 @@ GitHub Pagesで `docs/` を公開する場合、TikTok Developer Portalには以
 - Web/Desktop URL: `https://<your-github-pages-domain>/`
 - Redirect URI: `https://<your-github-pages-domain>/callback.html`
 
-GitHub PagesのSourceは、このリポジトリの `docs/` ディレクトリを指定してください。`docs/callback.html` の `USAGI_ANALYTICS_CALLBACK_URL` は、Terraform outputの `oauth_callback_url` に置き換えます。
+GitHub PagesのSourceは、このリポジトリの `docs/` ディレクトリを指定してください。`docs/callback.js` の `USAGI_ANALYTICS_CALLBACK_URL` は、Terraform outputの `oauth_callback_url` に置き換えます。
 
 ## 取得フィールド
 
