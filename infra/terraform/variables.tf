@@ -23,6 +23,11 @@ variable "image" {
 variable "tiktok_redirect_uri" {
   description = "GitHub Pages callback.html URL registered in TikTok Developer Portal."
   type        = string
+
+  validation {
+    condition     = can(regex("^https://.+/callback\\.html$", var.tiktok_redirect_uri))
+    error_message = "tiktok_redirect_uri must be the public GitHub Pages callback.html URL, not the Cloud Run /oauth/callback URL."
+  }
 }
 
 variable "tiktok_client_key" {

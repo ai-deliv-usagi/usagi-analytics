@@ -69,7 +69,10 @@ def create_app() -> Flask:
             return jsonify({"ok": False, "error": error}), 400
         if not code:
             return jsonify({"ok": False, "error": "missing code"}), 400
-        token_set = build_oauth_client().exchange_code(code)
+        try:
+            token_set = build_oauth_client().exchange_code(code)
+        except RuntimeError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
         return jsonify(
             {
                 "ok": True,
