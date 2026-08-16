@@ -1,6 +1,6 @@
 # usagi-analytics
 
-TikTokチャンネル `@ai_deliv_usagi` の投稿メトリクスを、TikTok Display API `/v2/video/list/` から定期取得して蓄積するバッチ分析プロジェクトです。実況システム本体とは切り離し、Cloud Run + Cloud Schedulerで1日1回程度の実行を想定します。
+認証済みTikTokアカウントの投稿メトリクスを、TikTok Display API `/v2/video/list/` から定期取得して蓄積するバッチ分析プロジェクトです。実況システム本体とは切り離し、Cloud Run + Cloud Schedulerで1日1回程度の実行を想定します。
 
 ## セットアップ
 
@@ -79,7 +79,7 @@ POST /run-fetch
 python -m src.main stats
 ```
 
-`snapshots` が保存件数、`distinct_videos` が取得できた動画ID数です。本番アプリに切り替える場合は、公開アカウント `@ai_deliv_usagi` で同じ手順を実行し、TikTokインサイトの投稿数と `distinct_videos` を照合してください。
+`snapshots` が保存件数、`distinct_videos` が取得できた動画ID数です。本番アプリに切り替える場合は、対象アカウントで同じ手順を実行し、TikTokインサイトの投稿数と `distinct_videos` を照合してください。
 
 ## Cloud Run
 

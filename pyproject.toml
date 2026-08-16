@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "usagi-analytics"
 version = "0.1.0"
-description = "TikTok Display API batch analytics for @ai_deliv_usagi."
+description = "TikTok Display API batch analytics for an authenticated TikTok account."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
