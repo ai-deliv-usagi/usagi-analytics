@@ -1,0 +1,12 @@
+project_id          = "your-gcp-project"
+region              = "asia-northeast1"
+service_name        = "usagi-analytics"
+tiktok_redirect_uri = "https://<your-github-pages-domain>/callback/callback.html"
+
+# Build/push this image before applying Cloud Run, or update after Artifact Registry is created.
+image = "asia-northeast1-docker.pkg.dev/your-gcp-project/usagi-analytics/usagi-analytics:latest"
+
+# Optional: convenient for first setup, but these values will be stored in Terraform state.
+# Prefer TF_VAR_tiktok_client_key / TF_VAR_tiktok_client_secret in your shell if your state is not secured.
+tiktok_client_key    = "your-client-key"
+tiktok_client_secret = "your-client-secret"
