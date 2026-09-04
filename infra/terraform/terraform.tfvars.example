@@ -10,3 +10,7 @@ image = "asia-northeast1-docker.pkg.dev/your-gcp-project/usagi-analytics/usagi-a
 # Prefer TF_VAR_tiktok_client_key / TF_VAR_tiktok_client_secret in your shell if your state is not secured.
 tiktok_client_key    = "your-client-key"
 tiktok_client_secret = "your-client-secret"
+
+# Google account allowed to view the private stream-health dashboard
+# (gcloud run services proxy). Must be prefixed with "user:".
+dashboard_viewer_email = "user:you@example.com"

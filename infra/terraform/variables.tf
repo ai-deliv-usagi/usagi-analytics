@@ -73,3 +73,14 @@ variable "max_instance_count" {
   type        = number
   default     = 1
 }
+
+variable "dashboard_viewer_email" {
+  description = "Google account granted run.invoker on the private stream-health dashboard service (e.g. user:you@example.com)."
+  type        = string
+}
+
+variable "stream_health_scheduler_schedule" {
+  description = "Cloud Scheduler cron expression for the stream-health batch job. Should run after the broadcast PC's GCS sync."
+  type        = string
+  default     = "0 6 * * *"
+}

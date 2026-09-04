@@ -27,3 +27,13 @@ output "snapshot_bucket" {
   description = "GCS bucket where JSONL snapshots are stored."
   value       = google_storage_bucket.snapshots.name
 }
+
+output "stream_health_url" {
+  description = "Private Cloud Run service URL for the stream-health batch job and dashboard. Not directly browsable; use `gcloud run services proxy`."
+  value       = google_cloud_run_v2_service.stream_health.uri
+}
+
+output "stream_health_proxy_command" {
+  description = "Command to open an authenticated local tunnel to the dashboard."
+  value       = "gcloud run services proxy ${google_cloud_run_v2_service.stream_health.name} --region=${var.region}"
+}

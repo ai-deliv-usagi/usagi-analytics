@@ -1,4 +1,58 @@
 from src.main import create_app
+from src.stream_health.analyzer import analyze_session
+
+
+def test_dashboard_renders_rows_from_stream_health_repository(monkeypatch):
+    monkeypatch.setenv("STREAM_HEALTH_BUCKET_NAME", "bucket")
+
+    class FakeRepository:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def read_index(self):
+            return [analyze_session("stream.jsonl", [], set()).to_row()]
+
+    monkeypatch.setattr("src.main.GCSStreamHealthRepository", FakeRepository)
+    app = create_app()
+
+    response = app.test_client().get("/dashboard")
+
+    assert response.status_code == 200
+    assert b"stream.jsonl" in response.data
+
+
+def test_run_stream_health_endpoint_reports_analyzed_and_written_counts(monkeypatch):
+    monkeypatch.setenv("STREAM_HEALTH_BUCKET_NAME", "bucket")
+
+    summary = analyze_session("stream.jsonl", [], set())
+
+    class FakeSource:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def analyze(self, *args, **kwargs):
+            return [summary]
+
+    class FakeRepository:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def write_summaries(self, summaries):
+            return len(summaries)
+
+    monkeypatch.setattr("src.main.GCSStreamHealthSource", FakeSource)
+    monkeypatch.setattr("src.main.GCSStreamHealthRepository", FakeRepository)
+    app = create_app()
+
+    response = app.test_client().post("/run-stream-health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "analyzed_streams": 1,
+        "written_summaries": 1,
+        "latest_stream": "stream.jsonl",
+    }
 
 
 def test_run_fetch_requires_header_when_token_is_configured(monkeypatch):

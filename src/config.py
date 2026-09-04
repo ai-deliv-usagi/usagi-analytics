@@ -32,6 +32,9 @@ class Settings:
     sqlite_db_path: str = ".local/usagi_analytics.sqlite3"
     gcs_bucket_name: str | None = None
     run_fetch_token: str | None = None
+    stream_health_bucket_name: str | None = None
+    stream_health_raw_prefix: str = "stream_health/raw"
+    stream_health_daily_prefix: str = "stream_health/daily"
     request_sleep_seconds: float = 0.5
     tiktok_auth_base_url: str = "https://www.tiktok.com/v2/auth/authorize/"
     tiktok_token_url: str = "https://open.tiktokapis.com/v2/oauth/token/"
@@ -51,6 +54,13 @@ def load_settings() -> Settings:
         sqlite_db_path=os.getenv("SQLITE_DB_PATH", ".local/usagi_analytics.sqlite3"),
         gcs_bucket_name=os.getenv("GCS_BUCKET_NAME"),
         run_fetch_token=os.getenv("RUN_FETCH_TOKEN"),
+        stream_health_bucket_name=os.getenv(
+            "STREAM_HEALTH_BUCKET_NAME", os.getenv("GCS_BUCKET_NAME")
+        ),
+        stream_health_raw_prefix=os.getenv("STREAM_HEALTH_RAW_PREFIX", "stream_health/raw"),
+        stream_health_daily_prefix=os.getenv(
+            "STREAM_HEALTH_DAILY_PREFIX", "stream_health/daily"
+        ),
         request_sleep_seconds=float(os.getenv("TIKTOK_REQUEST_SLEEP_SECONDS", "0.5")),
         tiktok_auth_base_url=os.getenv(
             "TIKTOK_AUTH_BASE_URL", "https://www.tiktok.com/v2/auth/authorize/"

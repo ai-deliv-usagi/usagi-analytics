@@ -97,10 +97,10 @@ python -m src.main serve
 
 - Secret Manager: TikTok client key / client secret / OAuth token / Scheduler token
 - Artifact Registry
-- Cloud Run service
-- Cloud Scheduler job
-- GCS bucket: `video_snapshots/YYYY/MM/DD/*.jsonl` に取得履歴を保存
-- Cloud Run用Service AccountとIAM
+- Cloud Run service（公開: TikTok取得用 `app` / 非公開: stream-health用 `stream_health`）
+- Cloud Scheduler job（`daily_fetch` / `daily_stream_health`）
+- GCS bucket: `video_snapshots/YYYY/MM/DD/*.jsonl` と `stream_health/{raw,daily}/*` を同一バケットに保存
+- Cloud Run用Service AccountとIAM（stream-health側は `allUsers` を付与せず、`dashboard_viewer_email` とScheduler用SAのみに `run.invoker` を付与）
 
 初回の流れ:
 
@@ -109,7 +109,7 @@ cd infra/terraform
 copy terraform.tfvars.example terraform.tfvars
 ```
 
-`terraform.tfvars` の `project_id`, `tiktok_redirect_uri`, `image`, `tiktok_client_key`, `tiktok_client_secret` を設定します。
+`terraform.tfvars` の `project_id`, `tiktok_redirect_uri`, `image`, `tiktok_client_key`, `tiktok_client_secret`, `dashboard_viewer_email` を設定します。
 
 注意: `tiktok_client_key` / `tiktok_client_secret` をTerraformでSecret Managerへ投入すると、値はTerraform stateにも残ります。stateを安全なGCS backend等で管理してください。stateに入れたくない場合は、TerraformではSecretの箱だけ作り、Secret Versionは別途 `gcloud secrets versions add` で追加してください。
 
@@ -145,6 +145,43 @@ GitHub Pagesで `docs/` を公開する場合、TikTok Developer Portalには以
 - Redirect URI: `https://<your-github-pages-domain>/callback.html`
 
 GitHub PagesのSourceは、このリポジトリの `docs/` ディレクトリを指定してください。`docs/callback.js` の `USAGI_ANALYTICS_CALLBACK_URL` は、Terraform outputの `oauth_callback_url` に置き換えます。
+
+## 配信JSONL健全性チェック（stream-health）
+
+配信PC上に溜まる配信ログJSONL（1配信1ファイル、comment/gift/follow/playbackイベント列）を解析し、リピーター率・コメント応答時間・ギフト応答・反応系発話比率などを日次で算出し、非公開ダッシュボードで推移を確認できる機能です。
+
+### 構成
+
+- 配信PCの`BROADCAST_LOG_DIR`配下のJSONLを、`gs://<bucket>/stream_health/raw/`へ同期（PC側で日次実行）。
+- Cloud Scheduler（OIDC認証）が非公開Cloud Runサービス `usagi-analytics-stream-health` の `/run-stream-health` を毎日叩き、`stream_health/daily/*.json` にサマリーを書き出す。
+- 同サービスの `/dashboard` がサマリー一覧をグラフ表示する。**このサービスはallUsers公開せず、`dashboard_viewer_email`（Terraform変数）で指定したGoogleアカウントにのみ `run.invoker` を付与**しているため、通常のブラウザアクセスはできない。
+
+### 配信PC側の同期設定
+
+```powershell
+$env:BROADCAST_LOG_DIR = "captured_images"  # ai-delivery側のBROADCAST_LOG_DIRと合わせる
+$env:STREAM_HEALTH_BUCKET_NAME = "<project_id>-usagi-analytics-snapshots"
+gcloud auth login   # または gcloud auth activate-service-account
+powershell -File scripts/sync_broadcast_logs.ps1
+```
+
+Windowsタスクスケジューラで日次実行するタスクとして登録してください。実行時刻は、Cloud Schedulerの`daily_stream_health`ジョブ（デフォルト `0 6 * * *` Asia/Tokyo、`stream_health_scheduler_schedule`変数で変更可）より前に完了するように設定します。
+
+### ダッシュボードの見方
+
+```powershell
+gcloud run services proxy usagi-analytics-stream-health --region=asia-northeast1
+```
+
+上記コマンドで認証済みのローカルトンネルを張り、ブラウザで `http://localhost:8080/dashboard` を開きます（`terraform output stream_health_proxy_command` で正確なコマンドを確認できます）。
+
+### 手動実行
+
+```powershell
+# GCSにテスト用JSONLがある状態で、ローカルから直接叩く場合
+curl -X POST -H "Authorization: Bearer $(gcloud auth print-identity-token)" `
+  "$(terraform output -raw stream_health_url)/run-stream-health"
+```
 
 ## 取得フィールド
 

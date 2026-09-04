@@ -5,12 +5,15 @@ import json
 import os
 from typing import Any
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
 
 from src.auth.oauth import TikTokOAuthClient
 from src.auth.token_store import build_token_store
 from src.config import load_settings, require
 from src.storage.repository import build_video_snapshot_repository
+from src.stream_health.analyzer import CRITERIA, METRIC_LABELS
+from src.stream_health.gcs_source import GCSStreamHealthSource
+from src.stream_health.repository import GCSStreamHealthRepository
 from src.tiktok_client.video_list import TikTokVideoListClient
 
 
@@ -51,6 +54,22 @@ def run_fetch() -> dict[str, Any]:
         "total_snapshots": stats.snapshots,
         "distinct_videos": stats.distinct_videos,
         "latest_fetched_at": stats.latest_fetched_at,
+    }
+
+
+def run_stream_health() -> dict[str, Any]:
+    settings = load_settings()
+    bucket_name = require(settings.stream_health_bucket_name, "STREAM_HEALTH_BUCKET_NAME")
+    source = GCSStreamHealthSource(bucket_name, prefix=settings.stream_health_raw_prefix)
+    summaries = source.analyze()
+    repository = GCSStreamHealthRepository(
+        bucket_name, daily_prefix=settings.stream_health_daily_prefix
+    )
+    written = repository.write_summaries(summaries)
+    return {
+        "analyzed_streams": len(summaries),
+        "written_summaries": written,
+        "latest_stream": summaries[-1].name if summaries else None,
     }
 
 
@@ -96,6 +115,26 @@ def create_app() -> Flask:
                 return jsonify({"ok": False, "error": "unauthorized"}), 401
         result = run_fetch()
         return jsonify({"ok": True, **result})
+
+    @app.post("/run-stream-health")
+    def run_stream_health_endpoint() -> Any:
+        result = run_stream_health()
+        return jsonify({"ok": True, **result})
+
+    @app.get("/dashboard")
+    def dashboard() -> Any:
+        settings = load_settings()
+        bucket_name = require(settings.stream_health_bucket_name, "STREAM_HEALTH_BUCKET_NAME")
+        repository = GCSStreamHealthRepository(
+            bucket_name, daily_prefix=settings.stream_health_daily_prefix
+        )
+        rows = repository.read_index()
+        return render_template(
+            "dashboard.html",
+            rows=rows,
+            metric_labels=METRIC_LABELS,
+            criteria=CRITERIA,
+        )
 
     return app
 

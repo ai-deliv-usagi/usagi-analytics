@@ -242,6 +242,111 @@ resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
   member   = "allUsers"
 }
 
+resource "google_service_account" "stream_health_scheduler" {
+  account_id   = "${var.service_name}-stream-sched"
+  display_name = "usagi-analytics stream-health Scheduler invoker"
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service" "stream_health" {
+  name                = "${var.service_name}-stream-health"
+  location            = var.region
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = false
+
+  template {
+    service_account = google_service_account.cloud_run.email
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = var.max_instance_count
+    }
+
+    containers {
+      image = var.image
+
+      env {
+        name  = "STORAGE_BACKEND"
+        value = "gcs_jsonl"
+      }
+
+      env {
+        name  = "GCS_BUCKET_NAME"
+        value = google_storage_bucket.snapshots.name
+      }
+
+      env {
+        name  = "STREAM_HEALTH_BUCKET_NAME"
+        value = google_storage_bucket.snapshots.name
+      }
+
+      env {
+        name  = "TOKEN_STORE_BACKEND"
+        value = "secret_manager"
+      }
+
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+
+      env {
+        name  = "TOKEN_SECRET_ID"
+        value = google_secret_manager_secret.tiktok_token.secret_id
+      }
+
+      ports {
+        container_port = 8080
+      }
+    }
+  }
+
+  depends_on = [
+    google_project_service.required,
+    google_storage_bucket_iam_member.cloud_run_snapshot_writer,
+  ]
+}
+
+# Deliberately no allUsers invoker binding: this service serves the private
+# stream-health dashboard and batch endpoint, unlike the public "app" service.
+resource "google_cloud_run_v2_service_iam_member" "stream_health_dashboard_viewer" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.stream_health.name
+  role     = "roles/run.invoker"
+  member   = var.dashboard_viewer_email
+}
+
+resource "google_cloud_run_v2_service_iam_member" "stream_health_scheduler_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.stream_health.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.stream_health_scheduler.email}"
+}
+
+resource "google_cloud_scheduler_job" "daily_stream_health" {
+  name        = "${var.service_name}-daily-stream-health"
+  description = "Analyze broadcast JSONL health metrics for usagi-analytics"
+  region      = var.region
+  schedule    = var.stream_health_scheduler_schedule
+  time_zone   = var.scheduler_time_zone
+
+  http_target {
+    http_method = "POST"
+    uri         = "${google_cloud_run_v2_service.stream_health.uri}/run-stream-health"
+
+    oidc_token {
+      service_account_email = google_service_account.stream_health_scheduler.email
+    }
+  }
+
+  depends_on = [
+    google_cloud_run_v2_service_iam_member.stream_health_scheduler_invoker,
+  ]
+}
+
 resource "google_cloud_scheduler_job" "daily_fetch" {
   name        = "${var.service_name}-daily-fetch"
   description = "Fetch TikTok video metrics for usagi-analytics"

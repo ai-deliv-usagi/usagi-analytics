@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>配信ヘルスダッシュボード</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f7f7f9; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin: 1.5rem 0; }
+    .chart-card { background: #fff; border-radius: 8px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+    .chart-card h2 { font-size: 0.95rem; margin: 0 0 0.5rem; }
+    .chart-card p { font-size: 0.75rem; color: #555; margin: 0.5rem 0 0; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.85rem; background: #fff; }
+    th, td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: right; white-space: nowrap; }
+    th { background: #eee; position: sticky; top: 0; }
+    td:first-child, th:first-child { text-align: left; }
+    .table-wrap { overflow-x: auto; max-height: 480px; }
+    .empty { color: #777; }
+  </style>
+</head>
+<body>
+  <h1>配信ヘルスダッシュボード</h1>
+
+  {% if not rows %}
+    <p class="empty">まだデータがありません。/run-stream-health が一度実行されると表示されます。</p>
+  {% else %}
+    <div class="charts" id="charts"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {% for field in rows[0].keys() %}
+              <th>{{ field }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              {% for value in row.values() %}
+                <td>{{ value }}</td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  <script>
+    const rows = {{ rows | tojson }};
+    const metricLabels = {{ metric_labels | tojson }};
+    const criteria = {{ criteria | tojson }};
+
+    const container = document.getElementById("charts");
+    if (container) {
+      const labels = rows.map((row) => row.stream_file);
+
+      Object.entries(metricLabels).forEach(([key, label]) => {
+        const values = rows.map((row) => {
+          const raw = row[key];
+          const parsed = parseFloat(raw);
+          return Number.isFinite(parsed) ? parsed : null;
+        });
+        if (values.every((value) => value === null)) {
+          return;
+        }
+
+        const card = document.createElement("div");
+        card.className = "chart-card";
+        card.innerHTML = `<h2>${label}</h2><canvas></canvas><p>${criteria[key] || ""}</p>`;
+        container.appendChild(card);
+
+        new Chart(card.querySelector("canvas"), {
+          type: "line",
+          data: {
+            labels,
+            datasets: [{ label, data: values, borderColor: "#4361ee", spanGaps: true }],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { x: { ticks: { maxRotation: 60, minRotation: 60 } } },
+          },
+        });
+      });
+    }
+  </script>
+</body>
+</html>
