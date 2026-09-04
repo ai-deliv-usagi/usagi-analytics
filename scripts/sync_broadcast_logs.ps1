@@ -68,7 +68,10 @@ if ($All) {
     $excludeDirPattern = [regex]::Escape($ExcludeDirName)
     $excludePrefixPattern = [regex]::Escape($NamePrefix)
     $excludePattern = "(^|/)$excludeDirPattern(/|`$)|(^|/)(?!$excludePrefixPattern)[^/]*`$"
-    gsutil -m rsync -r -x $excludePattern $BroadcastLogDir $destination
+    # gsutil resolves to gsutil.cmd on Windows, which PowerShell invokes via cmd.exe;
+    # without literal quotes here, cmd.exe treats the "|" in the regex as a pipe.
+    $excludePatternArg = '"' + $excludePattern + '"'
+    gsutil -m rsync -r -x $excludePatternArg $BroadcastLogDir $destination
     exit $LASTEXITCODE
 }
 
