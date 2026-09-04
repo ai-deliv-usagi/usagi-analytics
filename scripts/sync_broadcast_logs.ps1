@@ -32,12 +32,18 @@
 .PARAMETER All
   Do a full rsync of BroadcastLogDir instead of the recent-files-only
   upload. Slower as history grows; use for backfills/catch-up.
+
+.PARAMETER NamePrefix
+  Only sync files whose name starts with this prefix (e.g.
+  "@ai_deliv_usagi_20260711_180315.jsonl"). Defaults to
+  "@ai_deliv_usagi_".
 #>
 param(
     [string]$BroadcastLogDir = $(if ($env:BROADCAST_LOG_DIR) { $env:BROADCAST_LOG_DIR } else { "logs" }),
     [string]$BucketName = $env:STREAM_HEALTH_BUCKET_NAME,
     [int]$Days = 1,
-    [switch]$All
+    [switch]$All,
+    [string]$NamePrefix = "@ai_deliv_usagi_"
 )
 
 if (-not $BucketName) {
@@ -49,21 +55,22 @@ if (-not (Test-Path $BroadcastLogDir)) {
 }
 
 $destination = "gs://$BucketName/stream_health/raw/"
+$namePattern = "$NamePrefix*.jsonl"
 
 if ($All) {
     Write-Host "Syncing (full) $BroadcastLogDir -> $destination"
-    gsutil -m rsync -r $BroadcastLogDir $destination
+    gsutil -m rsync -r -x "^(?!$([regex]::Escape($NamePrefix))).*$" $BroadcastLogDir $destination
     exit $LASTEXITCODE
 }
 
 $cutoff = (Get-Date).AddDays(-$Days)
-$files = @(Get-ChildItem -Path $BroadcastLogDir -Recurse -File -Filter "*.jsonl" |
+$files = @(Get-ChildItem -Path $BroadcastLogDir -Recurse -File -Filter $namePattern |
     Where-Object { $_.LastWriteTime -ge $cutoff })
 
 if ($files.Count -eq 0) {
-    Write-Host "No *.jsonl files modified in the last $Days day(s) under $BroadcastLogDir; nothing to sync."
+    Write-Host "No '$namePattern' files modified in the last $Days day(s) under $BroadcastLogDir; nothing to sync."
     exit 0
 }
 
-Write-Host "Syncing $($files.Count) file(s) modified in the last $Days day(s) from $BroadcastLogDir -> $destination"
+Write-Host "Syncing $($files.Count) '$namePattern' file(s) modified in the last $Days day(s) from $BroadcastLogDir -> $destination"
 gsutil -m cp ($files | ForEach-Object { $_.FullName }) $destination
