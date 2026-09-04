@@ -152,7 +152,7 @@ GitHub PagesのSourceは、このリポジトリの `docs/` ディレクトリ�
 
 ### 構成
 
-- 配信PCの`BROADCAST_LOG_DIR`配下のJSONLを、`gs://<bucket>/stream_health/raw/`へ同期（PC側で日次実行）。
+- 配信PCの`BROADCAST_LOG_DIR`配下のJSONLを、`gs://<bucket>/stream_health/raw/`へ同期（PC側で日次実行）。1配信1ファイルで配信後は更新されないため、デフォルトでは直近1日（`-Days`で変更可）に更新されたファイルのみをアップロードする差分同期。バックフィルや取りこぼし時のキャッチアップには`-All`で全件rsyncも可能。
 - Cloud Scheduler（OIDC認証）が非公開Cloud Runサービス `usagi-analytics-stream-health` の `/run-stream-health` を毎日叩き、`stream_health/daily/*.json` にサマリーを書き出す。
 - 同サービスの `/dashboard` がサマリー一覧をグラフ表示する。**このサービスはallUsers公開せず、`dashboard_viewer_email`（Terraform変数）で指定したGoogleアカウントにのみ `run.invoker` を付与**しているため、通常のブラウザアクセスはできない。
 

@@ -9,6 +9,13 @@
   authenticated (`gcloud auth login` or a service account via
   `gcloud auth activate-service-account`) with write access to the bucket.
 
+  BroadcastLogger writes one JSONL file per broadcast and never modifies
+  it again after the stream ends, so by default this script only uploads
+  files whose last-write time falls within the last -Days day(s) (i.e.
+  yesterday's stream) instead of re-scanning/re-comparing the entire
+  history every run. Pass -All to fall back to a full rsync of the whole
+  directory (useful for a one-off backfill or catch-up after downtime).
+
 .PARAMETER BroadcastLogDir
   Directory containing the *.jsonl files written by BroadcastLogger
   (matches the ai-delivery BROADCAST_LOG_DIR env var). Defaults to the
@@ -17,10 +24,20 @@
 .PARAMETER BucketName
   Target GCS bucket name. Defaults to the STREAM_HEALTH_BUCKET_NAME
   environment variable.
+
+.PARAMETER Days
+  Only upload *.jsonl files last written within this many days. Default 1
+  (i.e. yesterday's broadcast). Ignored when -All is passed.
+
+.PARAMETER All
+  Do a full rsync of BroadcastLogDir instead of the recent-files-only
+  upload. Slower as history grows; use for backfills/catch-up.
 #>
 param(
     [string]$BroadcastLogDir = $(if ($env:BROADCAST_LOG_DIR) { $env:BROADCAST_LOG_DIR } else { "logs" }),
-    [string]$BucketName = $env:STREAM_HEALTH_BUCKET_NAME
+    [string]$BucketName = $env:STREAM_HEALTH_BUCKET_NAME,
+    [int]$Days = 1,
+    [switch]$All
 )
 
 if (-not $BucketName) {
@@ -32,5 +49,21 @@ if (-not (Test-Path $BroadcastLogDir)) {
 }
 
 $destination = "gs://$BucketName/stream_health/raw/"
-Write-Host "Syncing $BroadcastLogDir -> $destination"
-gsutil -m rsync -r $BroadcastLogDir $destination
+
+if ($All) {
+    Write-Host "Syncing (full) $BroadcastLogDir -> $destination"
+    gsutil -m rsync -r $BroadcastLogDir $destination
+    exit $LASTEXITCODE
+}
+
+$cutoff = (Get-Date).AddDays(-$Days)
+$files = @(Get-ChildItem -Path $BroadcastLogDir -Recurse -File -Filter "*.jsonl" |
+    Where-Object { $_.LastWriteTime -ge $cutoff })
+
+if ($files.Count -eq 0) {
+    Write-Host "No *.jsonl files modified in the last $Days day(s) under $BroadcastLogDir; nothing to sync."
+    exit 0
+}
+
+Write-Host "Syncing $($files.Count) file(s) modified in the last $Days day(s) from $BroadcastLogDir -> $destination"
+gsutil -m cp ($files | ForEach-Object { $_.FullName }) $destination
