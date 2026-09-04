@@ -37,13 +37,19 @@
   Only sync files whose name starts with this prefix (e.g.
   "@ai_deliv_usagi_20260711_180315.jsonl"). Defaults to
   "@ai_deliv_usagi_".
+
+.PARAMETER ExcludeDirName
+  Skip any file under a subfolder with this name (e.g. BroadcastLogDir's
+  "post_stream" subfolder, which holds post-processing output rather than
+  raw broadcast logs). Defaults to "post_stream".
 #>
 param(
     [string]$BroadcastLogDir = $(if ($env:BROADCAST_LOG_DIR) { $env:BROADCAST_LOG_DIR } else { "logs" }),
     [string]$BucketName = $env:STREAM_HEALTH_BUCKET_NAME,
     [int]$Days = 1,
     [switch]$All,
-    [string]$NamePrefix = "@ai_deliv_usagi_"
+    [string]$NamePrefix = "@ai_deliv_usagi_",
+    [string]$ExcludeDirName = "post_stream"
 )
 
 if (-not $BucketName) {
@@ -59,13 +65,19 @@ $namePattern = "$NamePrefix*.jsonl"
 
 if ($All) {
     Write-Host "Syncing (full) $BroadcastLogDir -> $destination"
-    gsutil -m rsync -r -x "^(?!$([regex]::Escape($NamePrefix))).*$" $BroadcastLogDir $destination
+    $excludeDirPattern = [regex]::Escape($ExcludeDirName)
+    $excludePrefixPattern = [regex]::Escape($NamePrefix)
+    $excludePattern = "(^|/)$excludeDirPattern(/|`$)|(^|/)(?!$excludePrefixPattern)[^/]*`$"
+    gsutil -m rsync -r -x $excludePattern $BroadcastLogDir $destination
     exit $LASTEXITCODE
 }
 
 $cutoff = (Get-Date).AddDays(-$Days)
 $files = @(Get-ChildItem -Path $BroadcastLogDir -Recurse -File -Filter $namePattern |
-    Where-Object { $_.LastWriteTime -ge $cutoff })
+    Where-Object {
+        $_.LastWriteTime -ge $cutoff -and
+        $_.DirectoryName.Split([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) -notcontains $ExcludeDirName
+    })
 
 if ($files.Count -eq 0) {
     Write-Host "No '$namePattern' files modified in the last $Days day(s) under $BroadcastLogDir; nothing to sync."
