@@ -179,8 +179,11 @@ gcloud run services proxy usagi-analytics-stream-health --project=usagi-analytic
 
 ```powershell
 # GCSにテスト用JSONLがある状態で、ローカルから直接叩く場合
-curl -X POST -H "Authorization: Bearer $(gcloud auth print-identity-token)" `
-  "$(terraform output -raw stream_health_url)/run-stream-health"
+# 注意: PowerShellの`curl`は`Invoke-WebRequest`のエイリアスでcurl形式の`-X`/`-H`を解釈できないため、
+# `Invoke-RestMethod`を使うか、`curl.exe`と明示して本物のcurlを呼ぶこと。
+Invoke-RestMethod -Method Post `
+  -Headers @{ Authorization = "Bearer $(gcloud auth print-identity-token)" } `
+  -Uri "$(terraform output -raw stream_health_url)/run-stream-health"
 ```
 
 ## 取得フィールド

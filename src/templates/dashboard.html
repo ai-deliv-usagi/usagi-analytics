@@ -64,13 +64,12 @@
           const parsed = parseFloat(raw);
           return Number.isFinite(parsed) ? parsed : null;
         });
-        if (values.every((value) => value === null)) {
-          return;
-        }
+        const hasData = values.some((value) => value !== null);
 
         const card = document.createElement("div");
         card.className = "chart-card";
-        card.innerHTML = `<h2>${label}</h2><canvas></canvas><p>${criteria[key] || ""}</p>`;
+        const note = hasData ? "" : "<p>まだデータがありません（対応するイベントが記録された配信を待っています）。</p>";
+        card.innerHTML = `<h2>${label}</h2><canvas></canvas><p>${criteria[key] || ""}</p>${note}`;
         container.appendChild(card);
 
         new Chart(card.querySelector("canvas"), {
