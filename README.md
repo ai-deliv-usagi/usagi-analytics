@@ -170,7 +170,7 @@ Windowsタスクスケジューラで日次実行するタスクとして登録�
 ### ダッシュボードの見方
 
 ```powershell
-gcloud run services proxy usagi-analytics-stream-health --region=asia-northeast1
+gcloud run services proxy usagi-analytics-stream-health --project=usagi-analytics --region=asia-northeast1
 ```
 
 上記コマンドで認証済みのローカルトンネルを張り、ブラウザで `http://localhost:8080/dashboard` を開きます（`terraform output stream_health_proxy_command` で正確なコマンドを確認できます）。
