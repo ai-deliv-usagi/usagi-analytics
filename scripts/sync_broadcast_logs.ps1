@@ -67,7 +67,7 @@ if ($All) {
     Write-Host "Syncing (full) $BroadcastLogDir -> $destination"
     $excludeDirPattern = [regex]::Escape($ExcludeDirName)
     $excludePrefixPattern = [regex]::Escape($NamePrefix)
-    $excludePattern = "(^|/)$excludeDirPattern(/|`$)|(^|/)(?!$excludePrefixPattern)[^/]*`$"
+    $excludePattern = "(^|/)$excludeDirPattern(/|`$)|(^|/)(?!$excludePrefixPattern)[^/]*`$|(^|/)[^/]*_(test|replay)\.jsonl`$"
     # gsutil resolves to gsutil.cmd on Windows, which PowerShell invokes via cmd.exe;
     # without literal quotes here, cmd.exe treats the "|" in the regex as a pipe.
     $excludePatternArg = '"' + $excludePattern + '"'
