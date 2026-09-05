@@ -21,6 +21,25 @@ def test_dashboard_renders_rows_from_stream_health_repository(monkeypatch):
     assert b"stream.jsonl" in response.data
 
 
+def test_dashboard_uses_available_chartjs_and_handles_load_failure(monkeypatch):
+    monkeypatch.setenv("STREAM_HEALTH_BUCKET_NAME", "bucket")
+
+    class FakeRepository:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def read_index(self):
+            return [analyze_session("stream.jsonl", [], set()).to_row()]
+
+    monkeypatch.setattr("src.main.GCSStreamHealthRepository", FakeRepository)
+    response = create_app().test_client().get("/dashboard")
+    html = response.get_data(as_text=True)
+
+    assert "Chart.js/4.5.1/chart.umd.min.js" in html
+    assert 'typeof Chart === "undefined"' in html
+    assert "グラフを読み込めませんでした" in html
+
+
 def test_run_stream_health_endpoint_reports_analyzed_and_written_counts(monkeypatch):
     monkeypatch.setenv("STREAM_HEALTH_BUCKET_NAME", "bucket")
 

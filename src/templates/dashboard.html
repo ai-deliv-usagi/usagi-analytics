@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>配信ヘルスダッシュボード</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; margin: 2rem; background: #f7f7f9; color: #1a1a1a; }
     h1 { font-size: 1.4rem; }
@@ -72,7 +72,15 @@
         card.innerHTML = `<h2>${label}</h2><canvas></canvas><p>${criteria[key] || ""}</p>${note}`;
         container.appendChild(card);
 
-        new Chart(card.querySelector("canvas"), {
+        const canvas = card.querySelector("canvas");
+        if (typeof Chart === "undefined") {
+          const unavailable = document.createElement("p");
+          unavailable.textContent = "グラフを読み込めませんでした。ページを再読み込みしてください。";
+          canvas.replaceWith(unavailable);
+          return;
+        }
+
+        new Chart(canvas, {
           type: "line",
           data: {
             labels,
