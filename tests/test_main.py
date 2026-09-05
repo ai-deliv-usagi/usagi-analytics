@@ -38,6 +38,12 @@ def test_dashboard_uses_available_chartjs_and_handles_load_failure(monkeypatch):
     assert "Chart.js/4.5.1/chart.umd.min.js" in html
     assert 'typeof Chart === "undefined"' in html
     assert "グラフを読み込めませんでした" in html
+    assert "判断基準:" in html
+    assert "危険ライン" in html
+    assert "rows.map(dateLabel)" in html
+    assert 'month: "numeric", day: "numeric"' in html
+    assert 'hour: "2-digit"' not in html
+    assert "gift_response_non_playing_seconds" in html
 
 
 def test_run_stream_health_endpoint_reports_analyzed_and_written_counts(monkeypatch):

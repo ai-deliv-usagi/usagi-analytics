@@ -5,29 +5,57 @@
   <title>配信ヘルスダッシュボード</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f7f7f9; color: #1a1a1a; }
-    h1 { font-size: 1.4rem; }
-    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin: 1.5rem 0; }
-    .chart-card { background: #fff; border-radius: 8px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
-    .chart-card h2 { font-size: 0.95rem; margin: 0 0 0.5rem; }
-    .chart-card p { font-size: 0.75rem; color: #555; margin: 0.5rem 0 0; }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f4f6fa; color: #172033; }
+    main { max-width: 1440px; margin: 0 auto; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin: 0; }
+    .subtitle { color: #667085; margin: 0.4rem 0 0; font-size: 0.9rem; }
+    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .chart-card { background: #fff; border: 1px solid #e4e7ec; border-radius: 12px; padding: 1.1rem; box-shadow: 0 1px 2px rgba(16,24,40,0.05); }
+    .chart-card.card-danger { border-color: #fda29b; }
+    .chart-card.card-warning { border-color: #fec84b; }
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+    .chart-card h2 { font-size: 1rem; margin: 0; }
+    .current { font-size: 1.65rem; font-weight: 700; margin-top: 0.35rem; font-variant-numeric: tabular-nums; }
+    .status { display: inline-flex; border-radius: 999px; padding: 0.25rem 0.6rem; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+    .status-ok { background: #ecfdf3; color: #027a48; }
+    .status-warning { background: #fffaeb; color: #b54708; }
+    .status-danger { background: #fef3f2; color: #b42318; }
+    .status-info { background: #eff8ff; color: #175cd3; }
+    .status-muted { background: #f2f4f7; color: #667085; }
+    .threshold { margin: 0.9rem 0 0.75rem; padding: 0.65rem 0.75rem; background: #f8fafc; border-left: 3px solid #98a2b3; border-radius: 4px; color: #475467; font-size: 0.82rem; }
+    .threshold strong { color: #344054; }
+    .chart-wrap { position: relative; height: 230px; }
+    .chart-note { color: #667085; font-size: 0.8rem; }
+    details { margin-top: 1.25rem; }
+    summary { cursor: pointer; color: #475467; font-weight: 600; padding: 0.75rem 0; }
     table { border-collapse: collapse; width: 100%; font-size: 0.85rem; background: #fff; }
     th, td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: right; white-space: nowrap; }
     th { background: #eee; position: sticky; top: 0; }
     td:first-child, th:first-child { text-align: left; }
     .table-wrap { overflow-x: auto; max-height: 480px; }
     .empty { color: #777; }
+    @media (max-width: 520px) {
+      main { padding: 1rem; }
+      .charts { grid-template-columns: 1fr; }
+      .chart-card { padding: 0.9rem; }
+    }
   </style>
 </head>
 <body>
+  <main>
   <h1>配信ヘルスダッシュボード</h1>
+  <p class="subtitle">直近の状態と推移を、配信日時ベースで確認できます。</p>
 
   {% if not rows %}
     <p class="empty">まだデータがありません。/run-stream-health が一度実行されると表示されます。</p>
   {% else %}
     <div class="charts" id="charts"></div>
 
-    <div class="table-wrap">
+    <details>
+      <summary>集計データを表示</summary>
+      <div class="table-wrap">
       <table>
         <thead>
           <tr>
@@ -46,7 +74,8 @@
           {% endfor %}
         </tbody>
       </table>
-    </div>
+      </div>
+    </details>
   {% endif %}
 
   <script>
@@ -54,22 +83,96 @@
     const metricLabels = {{ metric_labels | tojson }};
     const criteria = {{ criteria | tojson }};
 
+    const metricConfig = {
+      non_ja_comment_ratio: { format: "percent" },
+      repeater_rate: { format: "percent" },
+      comment_response_median_seconds: { format: "seconds", threshold: 15 },
+      gift_response_seconds: { format: "seconds", threshold: 10 },
+      reaction_speech_ratio: { format: "percent", threshold: 0.30 },
+      gift_concentration_top1_ratio: { format: "percent" },
+      follow_conversion_rate: { format: "percent" },
+    };
+
+    function numberOrNull(raw) {
+      const parsed = Number.parseFloat(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function metricValue(row, key) {
+      if (key === "gift_response_seconds") {
+        const values = String(row.gift_response_non_playing_seconds || "")
+          .split(";")
+          .map(numberOrNull)
+          .filter((value) => value !== null);
+        return values.length ? Math.max(...values) : null;
+      }
+      return numberOrNull(row[key]);
+    }
+
+    function dateLabel(row) {
+      const date = new Date(row.started_at);
+      if (!Number.isNaN(date.getTime())) {
+        return new Intl.DateTimeFormat("ja-JP", {
+          month: "numeric", day: "numeric",
+        }).format(date);
+      }
+      const match = String(row.stream_file || "").match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+      return match ? `${Number(match[2])}/${Number(match[3])}` : row.stream_file;
+    }
+
+    function displayValue(value, format) {
+      if (value === null) return "データなし";
+      if (format === "percent") return `${(value * 100).toFixed(1)}%`;
+      if (format === "seconds") return `${value.toFixed(1)}秒`;
+      return String(value);
+    }
+
+    function statusFor(key, values) {
+      const latest = values.at(-1);
+      if (latest === null) return { text: "判定不可", tone: "muted" };
+      if (key === "comment_response_median_seconds") {
+        const recent = values.slice(-2);
+        if (recent.length === 2 && recent.every((value) => value !== null && value > 15)) {
+          return { text: "要調査", tone: "danger" };
+        }
+        if (latest > 15) return { text: "経過観察", tone: "warning" };
+        return { text: "良好", tone: "ok" };
+      }
+      if (key === "gift_response_seconds") {
+        return latest > 10 ? { text: "要調査", tone: "danger" } : { text: "良好", tone: "ok" };
+      }
+      if (key === "reaction_speech_ratio") {
+        return latest > 0.30 ? { text: "見直し推奨", tone: "warning" } : { text: "良好", tone: "ok" };
+      }
+      if (key === "repeater_rate") {
+        const recent = values.slice(-3);
+        const declining = recent.length === 3 && recent.every((value) => value !== null)
+          && recent[0] > recent[1] && recent[1] > recent[2];
+        return declining ? { text: "注意", tone: "warning" } : { text: "低下なし", tone: "ok" };
+      }
+      return { text: "参考値", tone: "info" };
+    }
+
     const container = document.getElementById("charts");
     if (container) {
-      const labels = rows.map((row) => row.stream_file);
+      const labels = rows.map(dateLabel);
 
       Object.entries(metricLabels).forEach(([key, label]) => {
-        const values = rows.map((row) => {
-          const raw = row[key];
-          const parsed = parseFloat(raw);
-          return Number.isFinite(parsed) ? parsed : null;
-        });
+        const config = metricConfig[key] || { format: "number" };
+        const values = rows.map((row) => metricValue(row, key));
         const hasData = values.some((value) => value !== null);
+        const status = statusFor(key, values);
 
         const card = document.createElement("div");
-        card.className = "chart-card";
-        const note = hasData ? "" : "<p>まだデータがありません（対応するイベントが記録された配信を待っています）。</p>";
-        card.innerHTML = `<h2>${label}</h2><canvas></canvas><p>${criteria[key] || ""}</p>${note}`;
+        card.className = `chart-card card-${status.tone}`;
+        const note = hasData ? "" : '<p class="chart-note">対応するイベントが記録された配信を待っています。</p>';
+        card.innerHTML = `
+          <div class="card-header">
+            <div><h2>${label}</h2><div class="current">${displayValue(values.at(-1), config.format)}</div></div>
+            <span class="status status-${status.tone}">${status.text}</span>
+          </div>
+          <p class="threshold"><strong>判断基準:</strong> ${criteria[key] || "設定なし"}</p>
+          <div class="chart-wrap"><canvas></canvas></div>${note}`;
         container.appendChild(card);
 
         const canvas = card.querySelector("canvas");
@@ -84,16 +187,46 @@
           type: "line",
           data: {
             labels,
-            datasets: [{ label, data: values, borderColor: "#4361ee", spanGaps: true }],
+            datasets: [
+              { label, data: values, borderColor: "#4361ee", backgroundColor: "#4361ee", pointRadius: 2, tension: 0.2, spanGaps: true },
+              ...(config.threshold === undefined ? [] : [{
+                label: "危険ライン",
+                data: rows.map(() => config.threshold),
+                borderColor: "#d92d20",
+                borderDash: [6, 4],
+                borderWidth: 1.5,
+                pointRadius: 0,
+              }]),
+            ],
           },
           options: {
             responsive: true,
-            plugins: { legend: { display: false } },
-            scales: { x: { ticks: { maxRotation: 60, minRotation: 60 } } },
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: "index" },
+            plugins: {
+              legend: { display: config.threshold !== undefined, labels: { boxWidth: 20, usePointStyle: true } },
+              tooltip: {
+                callbacks: {
+                  label: (context) => `${context.dataset.label}: ${displayValue(context.parsed.y, config.format)}`,
+                },
+              },
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: (value) => config.format === "percent"
+                    ? `${Math.round(value * 100)}%`
+                    : `${value}${config.format === "seconds" ? "秒" : ""}`,
+                },
+              },
+            },
           },
         });
       });
     }
   </script>
+  </main>
 </body>
 </html>
